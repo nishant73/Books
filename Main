@@ -1,0 +1,65 @@
+from flask import Flask, request, jsonify
+from flask_httpauth import HTTPBasicAuth
+from werkzeug.security import generate_password_hash, check_password_hash
+
+app = Flask(__name__)
+auth = HTTPBasicAuth()
+
+# Dummy users for basic authentication
+users = {
+    "admin": generate_password_hash("admin123"),
+    "user": generate_password_hash("user123")
+}
+
+# Dummy database (SQLite)
+books = []
+
+# Basic authentication
+@auth.verify_password
+def verify_password(username, password):
+    if username in users and \
+            check_password_hash(users.get(username), password):
+        return username
+
+# Add a new book
+@app.route('/books', methods=['POST'])
+@auth.login_required
+def add_book():
+    data = request.json
+    books.append(data)
+    return jsonify({"message": "Book added successfully"}), 201
+
+# Retrieve all books
+@app.route('/books', methods=['GET'])
+def get_books():
+    return jsonify(books)
+
+# Retrieve a specific book by ISBN
+@app.route('/books/<isbn>', methods=['GET'])
+def get_book(isbn):
+    book = next((book for book in books if book['isbn'] == isbn), None)
+    if book:
+        return jsonify(book)
+    return jsonify({"message": "Book not found"}), 404
+
+# Update book details
+@app.route('/books/<isbn>', methods=['PUT'])
+@auth.login_required
+def update_book(isbn):
+    book = next((book for book in books if book['isbn'] == isbn), None)
+    if book:
+        data = request.json
+        book.update(data)
+        return jsonify({"message": "Book updated successfully"})
+    return jsonify({"message": "Book not found"}), 404
+
+# Delete a book
+@app.route('/books/<isbn>', methods=['DELETE'])
+@auth.login_required
+def delete_book(isbn):
+    global books
+    books = [book for book in books if book['isbn'] != isbn]
+    return jsonify({"message": "Book deleted successfully"})
+
+if __name__ == '__main__':
+    app.run(debug=True)
